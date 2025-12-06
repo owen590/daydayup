@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Smart Kids Learning Pad</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;600&family=ZCOOL+KuaiLe&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- PWA Manifest injected as Data URI -->
+    <link rel="manifest" href='data:application/manifest+json;charset=utf-8,{"name":"天天向上","short_name":"天天向上","start_url":".","display":"standalone","theme_color":"#4CC9F0","background_color":"#F0F9FF","icons":[{"src":"https://cdn-icons-png.flaticon.com/512/3081/3081559.png","sizes":"512x512","type":"image/png"}]}'>
+    <meta name="theme-color" content="#4CC9F0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Fredoka', 'sans-serif'],
+              chinese: ['"ZCOOL KuaiLe"', 'cursive'],
+            },
+            colors: {
+              kid: {
+                blue: '#4CC9F0',
+                purple: '#7209B7',
+                pink: '#F72585',
+                yellow: '#FFD60A',
+                green: '#06D6A0',
+                bg: '#F0F9FF',
+              }
+            },
+            animation: {
+              'bounce-slow': 'bounce 3s infinite',
+              'fade-in': 'fadeIn 0.5s ease-out',
+              'scale-in': 'scaleIn 0.3s ease-out',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              scaleIn: {
+                '0%': { transform: 'scale(0.9)', opacity: '0' },
+                '100%': { transform: 'scale(1)', opacity: '1' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        background-color: #F0F9FF;
+        font-family: 'Fredoka', sans-serif;
+        overscroll-behavior-y: none; /* Prevent pull-to-refresh on mobile */
+      }
+      .chinese-text {
+        font-family: 'ZCOOL KuaiLe', cursive;
+      }
+      /* Hide scrollbar for clean UI */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      /* Safe area for iPhone X+ */
+      .safe-area-bottom {
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+      
+      /* 3D Flip Utilities with WebKit Prefixes */
+      .perspective-1000 { 
+        perspective: 1000px; 
+        -webkit-perspective: 1000px;
+      }
+      .preserve-3d { 
+        transform-style: preserve-3d; 
+        -webkit-transform-style: preserve-3d; 
+      }
+      .rotate-y-180 { 
+        transform: rotateY(180deg); 
+        -webkit-transform: rotateY(180deg); 
+      }
+      .backface-hidden { 
+        backface-visibility: hidden; 
+        -webkit-backface-visibility: hidden; 
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
