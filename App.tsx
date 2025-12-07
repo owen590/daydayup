@@ -166,6 +166,12 @@ export default function App() {
   const [filteredItems, setFilteredItems] = useState<LearningItem[]>([]);
   const [score, setScore] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+  
+  // 汉字两级分类状态
+  const [selectedGrade, setSelectedGrade] = useState<string | null>(null);
+  const [selectedUnit, setSelectedUnit] = useState<string | null>(null);
   
   // Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -206,22 +212,68 @@ export default function App() {
 
   // Initialize Data
   useEffect(() => {
-    if (currentView === AppView.HANZI) setItems(INITIAL_HANZI.map(i => ({...i, isRead: false})));
-    if (currentView === AppView.ENGLISH) setItems(INITIAL_ENGLISH.map(i => ({...i, isRead: false})));
-    setCurrentPage(1); // Reset page on view change
+    let newItems: LearningItem[] = [];
+    
+    if (currentView === AppView.HANZI) {
+      // 直接使用从Markdown提取的数据，包含grade和unit信息
+      newItems = INITIAL_HANZI.map(item => ({
+        ...item,
+        isRead: false,
+        // 保留原有的isWritable字段，从数据中获取或默认true
+        isWritable: item.isWritable !== undefined ? item.isWritable : true
+      }));
+    }
+    
+    if (currentView === AppView.ENGLISH) {
+      newItems = INITIAL_ENGLISH.map(i => ({...i, isRead: false}));
+    }
+    
+    setItems(newItems);
+    
+    // 重置状态
+    setSelectedCategory(null);
+    setSelectedGrade(null);
+    setSelectedUnit(null);
+    setCurrentPage(1);
   }, [currentView]);
 
-  // Search Logic
+  // Search Logic with Grade and Unit Filter
   useEffect(() => {
     if (!items.length) return;
+    
     const lower = searchTerm.toLowerCase();
-    const filtered = items.filter(i => 
-      i.term.toLowerCase().includes(lower) || 
-      i.meaning.toLowerCase().includes(lower)
-    );
+    let filtered = items;
+    
+    // 年级筛选
+    if (selectedGrade) {
+      filtered = filtered.filter(i => i.grade === selectedGrade);
+    }
+    
+    // 单元筛选
+    if (selectedUnit) {
+      filtered = filtered.filter(i => i.unit === selectedUnit);
+    }
+    
+    // 分类筛选（保留原功能，用于英语学习）
+    if (selectedCategory) {
+      filtered = filtered.filter(i => i.subcategory === selectedCategory);
+    }
+    
+    // 搜索筛选
+    if (searchTerm) {
+      filtered = filtered.filter(i => 
+        i.term.toLowerCase().includes(lower) || 
+        i.meaning.toLowerCase().includes(lower)
+      );
+    }
+    
     setFilteredItems(filtered);
-    setCurrentPage(1); // Reset page on search
-  }, [searchTerm, items]);
+    
+    // 筛选条件变化时重置页码
+    if (searchTerm || selectedCategory || selectedGrade || selectedUnit) {
+      setCurrentPage(1);
+    }
+  }, [searchTerm, items, selectedCategory, selectedGrade, selectedUnit]);
 
   const handleGlobalSearch = async () => {
     if (!searchTerm || filteredItems.length > 0) return;
@@ -529,17 +581,46 @@ export default function App() {
         (currentPage - 1) * ITEMS_PER_PAGE, 
         currentPage * ITEMS_PER_PAGE
     );
+    
+    // 提取唯一的年级列表
+    const grades = Array.from(new Set(items.filter(i => i.grade).map(i => i.grade)));
+    
+    // 提取当前年级下的唯一单元列表
+    const units = selectedGrade 
+      ? Array.from(new Set(items.filter(i => i.grade === selectedGrade).map(i => i.unit))) 
+      : [];
 
     return (
       <div className="min-h-screen bg-kid-bg flex flex-col">
         {/* Mobile Sticky Header */}
         <div className="bg-white px-4 py-3 shadow-sm sticky top-0 z-40 flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <button onClick={() => setCurrentView(AppView.HOME)} className="p-2 -ml-2 hover:bg-gray-100 rounded-full active:scale-90 transition-transform">
-              <ArrowLeft size={28} className="text-gray-600" />
-            </button>
+            {selectedUnit ? (
+              <button onClick={() => {
+                setSelectedUnit(null);
+                setSearchTerm('');
+              }} className="p-2 -ml-2 hover:bg-gray-100 rounded-full active:scale-90 transition-transform">
+                <ArrowLeft size={28} className="text-gray-600" />
+              </button>
+            ) : selectedGrade ? (
+              <button onClick={() => {
+                setSelectedGrade(null);
+                setSelectedUnit(null);
+                setSearchTerm('');
+              }} className="p-2 -ml-2 hover:bg-gray-100 rounded-full active:scale-90 transition-transform">
+                <ArrowLeft size={28} className="text-gray-600" />
+              </button>
+            ) : (
+              <button onClick={() => setCurrentView(AppView.HOME)} className="p-2 -ml-2 hover:bg-gray-100 rounded-full active:scale-90 transition-transform">
+                <ArrowLeft size={28} className="text-gray-600" />
+              </button>
+            )}
             <h2 className="text-xl font-bold text-gray-800 chinese-text">
-              {currentView === AppView.HANZI ? '语文课' : '英语课'}
+              {selectedUnit 
+                ? `${selectedGrade} - ${selectedUnit}`
+                : selectedGrade 
+                  ? `${selectedGrade}`
+                  : currentView === AppView.HANZI ? '语文课' : '英语课'}
             </h2>
             <div className="flex items-center gap-1 bg-kid-yellow/10 px-3 py-1 rounded-full">
               <Star className="text-kid-yellow fill-current" size={18} />
@@ -547,60 +628,110 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-             <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
-               <div className="h-full bg-kid-green transition-all duration-500" style={{ width: `${progress}%` }}></div>
-             </div>
-             <span className="text-xs font-bold text-gray-400 whitespace-nowrap">{readCount} / {items.length}</span>
-          </div>
+          {selectedUnit && (
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-kid-green transition-all duration-500" style={{ width: `${progress}%` }}></div>
+              </div>
+              <span className="text-xs font-bold text-gray-400 whitespace-nowrap">{readCount} / {items.length}</span>
+            </div>
+          )}
         </div>
 
         <div className="flex-1 w-full max-w-6xl mx-auto p-4 flex flex-col gap-6">
-          {/* Search Bar */}
-          <div className="relative">
-            <input 
-              type="text" 
-              placeholder={currentView === AppView.HANZI ? "搜索 (例如：火)..." : "搜索..."}
-              className="w-full p-4 pl-12 rounded-2xl border-none outline-none text-lg shadow-[0_2px_10px_rgba(0,0,0,0.05)] bg-white placeholder:text-gray-300 transition-all focus:ring-2 focus:ring-kid-blue/50"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleGlobalSearch()}
-            />
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-            {searchTerm && (
-                <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300">
-                    <X size={20} />
+          {/* 汉字两级分类界面 */}
+          {currentView === AppView.HANZI && !selectedGrade ? (
+            // 年级选择界面
+            <div className="grid grid-cols-2 gap-4">
+              {grades.map(grade => (
+                <button
+                  key={grade}
+                  onClick={() => setSelectedGrade(grade)}
+                  className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all active:scale-95 flex flex-col items-center gap-3"
+                >
+                  <div className="w-16 h-16 bg-kid-green/20 rounded-2xl flex items-center justify-center text-kid-green">
+                    <Languages size={32} />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-800 chinese-text">
+                    {grade}
+                  </h3>
+                  <p className="text-sm text-gray-400">
+                    {items.filter(i => i.grade === grade).length} 个字
+                  </p>
                 </button>
-            )}
-          </div>
-
-          {searchTerm && filteredItems.length === 0 && !isAiLoading && (
-            <div className="bg-white p-6 rounded-2xl shadow-sm text-center">
-              <p className="mb-4 text-gray-500">书里没找到这个词哦。</p>
-              <Button color="bg-kid-pink" onClick={handleGlobalSearch} className="w-full">
-                 <Sparkles size={18} /> 问问魔法老师
-              </Button>
+              ))}
             </div>
-          )}
+          ) : currentView === AppView.HANZI && !selectedUnit ? (
+            // 单元选择界面
+            <div className="grid grid-cols-2 gap-4">
+              {units.map(unit => (
+                <button
+                  key={unit}
+                  onClick={() => setSelectedUnit(unit)}
+                  className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all active:scale-95 flex flex-col items-center gap-3"
+                >
+                  <div className="w-16 h-16 bg-kid-blue/20 rounded-2xl flex items-center justify-center text-kid-blue">
+                    <Languages size={32} />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-800 chinese-text">
+                    {unit}
+                  </h3>
+                  <p className="text-sm text-gray-400">
+                    {items.filter(i => i.grade === selectedGrade && i.unit === unit).length} 个字
+                  </p>
+                </button>
+              ))}
+            </div>
+          ) : (
+            // 搜索和字卡界面
+            <>
+              {/* Search Bar */}
+              <div className="relative">
+                <input 
+                  type="text" 
+                  placeholder={currentView === AppView.HANZI ? "搜索 (例如：火)..." : "搜索..."}
+                  className="w-full p-4 pl-12 rounded-2xl border-none outline-none text-lg shadow-[0_2px_10px_rgba(0,0,0,0.05)] bg-white placeholder:text-gray-300 transition-all focus:ring-2 focus:ring-kid-blue/50"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleGlobalSearch()}
+                />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                {searchTerm && (
+                    <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300">
+                        <X size={20} />
+                    </button>
+                )}
+              </div>
 
-          {/* Items Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {paginatedItems.map(item => (
-              <Card 
-                key={item.id} 
-                item={item} 
-                onAskAI={handleAskAI}
-                onToggleRead={handleToggleRead}
-              />
-            ))}
-          </div>
+              {searchTerm && filteredItems.length === 0 && !isAiLoading && (
+                <div className="bg-white p-6 rounded-2xl shadow-sm text-center">
+                  <p className="mb-4 text-gray-500">书里没找到这个词哦。</p>
+                  <Button color="bg-kid-pink" onClick={handleGlobalSearch} className="w-full">
+                     <Sparkles size={18} /> 问问魔法老师
+                  </Button>
+                </div>
+              )}
+
+              {/* Items Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {paginatedItems.map(item => (
+                  <Card 
+                    key={item.id} 
+                    item={item} 
+                    onAskAI={handleAskAI}
+                    onToggleRead={handleToggleRead}
+                  />
+                ))}
+              </div>
+            </>
+          )}
 
           {/* Spacer for bottom controls */}
           <div className="h-20"></div>
         </div>
 
         {/* Pagination Footer */}
-        {totalPages > 1 && (
+        {totalPages > 1 && selectedUnit && (
             <div className="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-md border-t border-gray-100 p-4 z-40 flex items-center justify-between safe-area-bottom shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
                 <Button 
                     color="bg-kid-blue" 
