@@ -77,13 +77,92 @@ const parseGradeFile = (filePath: string, gradeName: string, startId: number): L
       pinyin = pinyin.replace(/[—]/g, '').trim();
       if (!pinyin) continue;
       
+      // 生成更有意义的含义和例句
+      // 根据分类生成含义
+      let meaning = '';
+      if (category.includes('自然·天文')) {
+        meaning = `指天空、天体等自然现象。`;
+      } else if (category.includes('自然·地理')) {
+        meaning = `指土地、山川等地理事物。`;
+      } else if (category.includes('人伦')) {
+        meaning = `指人类或人际关系。`;
+      } else if (category.includes('代词')) {
+        meaning = `用于指代人或事物。`;
+      } else if (category.includes('身体部位')) {
+        meaning = `指人体的某个部位。`;
+      } else if (category.includes('植物')) {
+        meaning = `指植物或植物的一部分。`;
+      } else if (category.includes('动物')) {
+        meaning = `指动物。`;
+      } else if (category.includes('方位')) {
+        meaning = `表示方向或位置。`;
+      } else if (category.includes('动作')) {
+        meaning = `表示某种动作或行为。`;
+      } else if (category.includes('形容词')) {
+        meaning = `用于描述事物的特征。`;
+      } else if (category.includes('时间·季节')) {
+        meaning = `表示时间或季节。`;
+      } else if (category.includes('颜色')) {
+        meaning = `表示颜色。`;
+      } else {
+        meaning = `常用汉字。`;
+      }
+      
+      // 直接使用汉字作为主含义，后面跟具体解释
+      const fullMeaning = `${hanzi}${meaning}`;
+      
+      // 生成更有意义的例句
+      let example = '';
+      if (hanzi === '天') {
+        example = '今天天气真好！';
+      } else if (hanzi === '地') {
+        example = '地上有一朵花。';
+      } else if (hanzi === '人') {
+        example = '我们都是中国人。';
+      } else if (hanzi === '你') {
+        example = '你好，很高兴认识你。';
+      } else if (hanzi === '我') {
+        example = '我喜欢读书。';
+      } else if (hanzi === '他') {
+        example = '他在公园里玩。';
+      } else if (hanzi === '口') {
+        example = '张开嘴巴说"啊"。';
+      } else if (hanzi === '耳') {
+        example = '我用耳朵听音乐。';
+      } else if (hanzi === '目') {
+        example = '保护眼睛很重要。';
+      } else if (hanzi === '手') {
+        example = '我用手写字。';
+      } else if (hanzi === '足') {
+        example = '用脚走路。';
+      } else if (hanzi === '日') {
+        example = '太阳从东方升起。';
+      } else if (hanzi === '月') {
+        example = '今晚的月亮很圆。';
+      } else if (hanzi === '水') {
+        example = '多喝水对身体好。';
+      } else if (hanzi === '火') {
+        example = '小心火烛。';
+      } else if (hanzi === '山') {
+        example = '远处有一座高山。';
+      } else if (hanzi === '石') {
+        example = '地上有一块石头。';
+      } else if (hanzi === '田') {
+        example = '田里种满了庄稼。';
+      } else if (hanzi === '禾') {
+        example = '禾苗长得很茂盛。';
+      } else {
+        // 通用例句模板
+        example = `${hanzi}是一个常用汉字。`;
+      }
+      
       // 添加到结果
       result.push({
         id: `h${idCounter++}`,
         term: hanzi,
         pronunciation: pinyin,
-        meaning: `${hanzi} (Chinese character)`,
-        example: `${hanzi} is a common Chinese character.`,
+        meaning: fullMeaning,
+        example: example,
         category: 'hanzi',
         grade: gradeName,
         unit: currentUnit,
