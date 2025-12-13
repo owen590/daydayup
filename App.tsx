@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  BookOpen, 
-  Languages, 
-  Calculator, 
-  Search, 
-  Star, 
-  Volume2, 
-  ArrowLeft, 
+import {
+  BookOpen,
+  Languages,
+  Calculator,
+  Search,
+  Star,
+  Volume2,
+  ArrowLeft,
   Sparkles,
   Trophy,
   BrainCircuit,
@@ -21,8 +21,114 @@ import {
   PlusSquare
 } from 'lucide-react';
 import { AppView, LearningItem, MathProblem } from './types';
-import { INITIAL_HANZI, INITIAL_ENGLISH } from './constants';
+import { INITIAL_ENGLISH } from './constants';
 import { generateExplanation, searchNewItem, generateMathProblem, generateMathProblemWithOptions } from './services/aiService';
+
+// 加载汉字数据的函数
+const loadHanziData = async () => {
+  try {
+    const grades = [1, 2, 3, 4, 5, 6];
+    const hanziData: LearningItem[] = [];
+    
+    for (const grade of grades) {
+      try {
+        const response = await fetch(`/汉字生字/${grade}年级_汉字数据.json`);
+        const data = await response.json();
+        
+        if (Array.isArray(data)) {
+          const formattedData = data.map(item => ({
+            ...item,
+            category: 'hanzi',
+            isRead: false,
+            isWritable: item.isWritable !== undefined ? item.isWritable : true
+          }));
+          hanziData.push(...formattedData);
+        } else if (data && typeof data === 'object') {
+          // 处理按单元组织的结构
+          Object.keys(data).forEach(unitKey => {
+            const unitData = data[unitKey];
+            if (Array.isArray(unitData)) {
+              unitData.forEach((item: any) => {
+                hanziData.push({
+                  ...item,
+                  grade: `${grade}年级`,
+                  unit: unitKey,
+                  category: 'hanzi',
+                  isRead: false,
+                  isWritable: item.isWritable !== undefined ? item.isWritable : true
+                });
+              });
+            } else if (unitData && typeof unitData === 'object' && unitData.characters) {
+              // 处理更复杂的结构，如包含characters数组
+              unitData.characters.forEach((char: string) => {
+                hanziData.push({
+                  id: `h${grade}-${unitKey}-${char}`,
+                  term: char,
+                  pronunciation: '',
+                  meaning: '',
+                  example: '',
+                  grade: `${grade}年级`,
+                  unit: unitKey,
+                  category: 'hanzi',
+                  isRead: false,
+                  isWritable: true
+                });
+              });
+            }
+          });
+        }
+      } catch (error) {
+        console.error(`加载${grade}年级汉字数据失败:`, error);
+      }
+    }
+    
+    return hanziData;
+  } catch (error) {
+    console.error('加载汉字数据失败:', error);
+    return [];
+  }
+};
+
+// 加载英语数据的函数
+const loadEnglishData = async () => {
+  try {
+    // 加载所有英语年级的JSON数据
+    const grades = [
+      { file: 'englishGrade1.json', grade: '一年级上' },
+      { file: 'englishGrade1B.json', grade: '一年级下' },
+      { file: 'englishGrade2.json', grade: '二年级上' },
+      { file: 'englishGrade2B.json', grade: '二年级下' },
+      { file: 'englishGrade3.json', grade: '三年级上' },
+      { file: 'englishGrade3B.json', grade: '三年级下' }
+    ];
+    
+    const englishData: LearningItem[] = [];
+    
+    for (const grade of grades) {
+      try {
+        const response = await fetch(`/英语生字/${grade.file}`);
+        const data = await response.json();
+        
+        if (Array.isArray(data)) {
+          const formattedData = data.map((item: any) => ({
+            ...item,
+            category: 'english',
+            isRead: false,
+            isWritable: item.isWritable !== undefined ? item.isWritable : true
+          }));
+          englishData.push(...formattedData);
+        }
+      } catch (error) {
+        console.error(`加载${grade.grade}英语数据失败:`, error);
+      }
+    }
+    
+    return englishData;
+  } catch (error) {
+    console.error('加载英语数据失败:', error);
+    return [];
+  }
+};
 
 // --- Components ---
 
@@ -88,10 +194,10 @@ const Card: React.FC<{
 
            {/* Content Area */}
            <div className="flex flex-col items-center justify-center gap-2 w-full h-full">
-              <div className={`font-black text-center break-words w-full px-1 overflow-hidden leading-none ${                  item.category === 'hanzi' 
+              <div className={`font-black text-center break-words w-full px-1 overflow-hidden leading-relaxed ${                  item.category === 'hanzi' 
                   ? 'text-8xl text-kid-purple' 
                   : 'text-5xl text-kid-pink'
-              }`} style={{ fontFamily: 'Noto Serif SC, serif' }}>
+              }`} style={{ fontFamily: item.category === 'hanzi' ? 'Noto Serif SC, serif' : 'Fredoka, sans-serif' }}>
                 {item.term}
               </div>
 
@@ -173,6 +279,9 @@ export default function App() {
   const [selectedGrade, setSelectedGrade] = useState<string | null>(null);
   const [selectedUnit, setSelectedUnit] = useState<string | null>(null);
   
+  // 加载状态
+  const [isLoading, setIsLoading] = useState(false);
+  
   // Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
@@ -212,29 +321,31 @@ export default function App() {
 
   // Initialize Data
   useEffect(() => {
-    let newItems: LearningItem[] = [];
+    const fetchData = async () => {
+      setIsLoading(true);
+      let newItems: LearningItem[] = [];
+      
+      if (currentView === AppView.HANZI) {
+        // 从汉字生字文件夹加载数据
+        newItems = await loadHanziData();
+      }
+      
+      if (currentView === AppView.ENGLISH) {
+        // 从英语生字文件夹加载数据
+        newItems = await loadEnglishData();
+      }
+      
+      setItems(newItems);
+      
+      // 重置状态
+      setSelectedCategory(null);
+      setSelectedGrade(null);
+      setSelectedUnit(null);
+      setCurrentPage(1);
+      setIsLoading(false);
+    };
     
-    if (currentView === AppView.HANZI) {
-      // 直接使用从Markdown提取的数据，包含grade和unit信息
-      newItems = INITIAL_HANZI.map(item => ({
-        ...item,
-        isRead: false,
-        // 保留原有的isWritable字段，从数据中获取或默认true
-        isWritable: item.isWritable !== undefined ? item.isWritable : true
-      }));
-    }
-    
-    if (currentView === AppView.ENGLISH) {
-      newItems = INITIAL_ENGLISH.map(i => ({...i, isRead: false}));
-    }
-    
-    setItems(newItems);
-    
-    // 重置状态
-    setSelectedCategory(null);
-    setSelectedGrade(null);
-    setSelectedUnit(null);
-    setCurrentPage(1);
+    fetchData();
   }, [currentView]);
 
   // Search Logic with Grade and Unit Filter
@@ -503,7 +614,7 @@ export default function App() {
         <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-kid-purple to-kid-pink mb-4 leading-tight drop-shadow-sm chinese-text">
           天天向上
         </h1>
-        <p className="text-xl text-gray-500 font-medium">快乐学习应用</p>
+        <p className="text-xl text-gray-500 font-medium">小学生APP</p>
       </div>
 
       <div className="flex flex-col gap-6 w-full max-w-md">
@@ -639,90 +750,104 @@ export default function App() {
         </div>
 
         <div className="flex-1 w-full max-w-6xl mx-auto p-4 flex flex-col gap-6">
-          {/* 汉字两级分类界面 */}
-          {currentView === AppView.HANZI && !selectedGrade ? (
-            // 年级选择界面
-            <div className="grid grid-cols-2 gap-4">
-              {grades.map(grade => (
-                <button
-                  key={grade}
-                  onClick={() => setSelectedGrade(grade)}
-                  className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all active:scale-95 flex flex-col items-center gap-3"
-                >
-                  <div className="w-16 h-16 bg-kid-green/20 rounded-2xl flex items-center justify-center text-kid-green">
-                    <Languages size={32} />
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-800 chinese-text">
-                    {grade}
-                  </h3>
-                  <p className="text-sm text-gray-400">
-                    {items.filter(i => i.grade === grade).length} 个字
-                  </p>
-                </button>
-              ))}
-            </div>
-          ) : currentView === AppView.HANZI && !selectedUnit ? (
-            // 单元选择界面
-            <div className="grid grid-cols-2 gap-4">
-              {units.map(unit => (
-                <button
-                  key={unit}
-                  onClick={() => setSelectedUnit(unit)}
-                  className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all active:scale-95 flex flex-col items-center gap-3"
-                >
-                  <div className="w-16 h-16 bg-kid-blue/20 rounded-2xl flex items-center justify-center text-kid-blue">
-                    <Languages size={32} />
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-800 chinese-text">
-                    {unit}
-                  </h3>
-                  <p className="text-sm text-gray-400">
-                    {items.filter(i => i.grade === selectedGrade && i.unit === unit).length} 个字
-                  </p>
-                </button>
-              ))}
+          {/* 加载状态 */}
+          {isLoading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <Loader2 size={48} className="text-kid-blue animate-spin" />
+              <span className="ml-3 text-xl font-bold text-gray-500 chinese-text">正在加载...</span>
             </div>
           ) : (
-            // 搜索和字卡界面
             <>
-              {/* Search Bar */}
-              <div className="relative">
-                <input 
-                  type="text" 
-                  placeholder={currentView === AppView.HANZI ? "搜索 (例如：火)..." : "搜索..."}
-                  className="w-full p-4 pl-12 rounded-2xl border-none outline-none text-lg shadow-[0_2px_10px_rgba(0,0,0,0.05)] bg-white placeholder:text-gray-300 transition-all focus:ring-2 focus:ring-kid-blue/50"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleGlobalSearch()}
-                />
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                {searchTerm && (
-                    <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300">
-                        <X size={20} />
+              {/* 年级选择界面（只有当存在grade信息时才显示） */}
+              {((currentView === AppView.HANZI || currentView === AppView.ENGLISH) && !selectedGrade && items.some(i => i.grade)) && (
+                <div className="grid grid-cols-2 gap-4">
+                  {grades.map(grade => (
+                    <button
+                      key={grade}
+                      onClick={() => setSelectedGrade(grade)}
+                      className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all active:scale-95 flex flex-col items-center gap-3"
+                    >
+                      <div className={`w-16 h-16 ${currentView === AppView.HANZI ? 'bg-kid-green/20 text-kid-green' : 'bg-kid-blue/20 text-kid-blue'} rounded-2xl flex items-center justify-center`}>
+                        <Languages size={32} />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-800 chinese-text">
+                        {grade}
+                      </h3>
+                      <p className="text-sm text-gray-400">
+                        {items.filter(i => i.grade === grade).length} {currentView === AppView.HANZI ? '个汉字' : '个单词'}
+                      </p>
                     </button>
-                )}
-              </div>
-
-              {searchTerm && filteredItems.length === 0 && !isAiLoading && (
-                <div className="bg-white p-6 rounded-2xl shadow-sm text-center">
-                  <p className="mb-4 text-gray-500">书里没找到这个词哦。</p>
-                  <Button color="bg-kid-pink" onClick={handleGlobalSearch} className="w-full">
-                     <Sparkles size={18} /> 问问魔法老师
-                  </Button>
+                  ))}
                 </div>
               )}
 
-              {/* Items Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {paginatedItems.map(item => (
-                  <Card 
-                    key={item.id} 
-                    item={item} 
-                    onAskAI={handleAskAI}
-                    onToggleRead={handleToggleRead}
-                  />
-                ))}
-              </div>
+              {/* 单元选择界面（只有当选择了年级且存在unit信息时才显示） */}
+              {((currentView === AppView.HANZI || currentView === AppView.ENGLISH) && !selectedUnit && selectedGrade) && (
+                <div className="grid grid-cols-2 gap-4">
+                  {units.map(unit => (
+                    <button
+                      key={unit}
+                      onClick={() => setSelectedUnit(unit)}
+                      className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all active:scale-95 flex flex-col items-center gap-3"
+                    >
+                      <div className={`w-16 h-16 ${currentView === AppView.HANZI ? 'bg-kid-green/20 text-kid-green' : 'bg-kid-blue/20 text-kid-blue'} rounded-2xl flex items-center justify-center`}>
+                        <Languages size={32} />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-800 chinese-text">
+                        {unit}
+                      </h3>
+                      <p className="text-sm text-gray-400">
+                        {items.filter(i => i.grade === selectedGrade && i.unit === unit).length} {currentView === AppView.HANZI ? '个汉字' : '个单词'}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* 搜索和字卡界面 */}
+              {(!((currentView === AppView.HANZI || currentView === AppView.ENGLISH) && !selectedGrade && items.some(i => i.grade)) && 
+                !((currentView === AppView.HANZI || currentView === AppView.ENGLISH) && !selectedUnit && selectedGrade)) && (
+                <>
+                  {/* Search Bar */}
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      placeholder={currentView === AppView.HANZI ? "搜索 (例如：火)..." : "搜索..."}
+                      className="w-full p-4 pl-12 rounded-2xl border-none outline-none text-lg shadow-[0_2px_10px_rgba(0,0,0,0.05)] bg-white placeholder:text-gray-300 transition-all focus:ring-2 focus:ring-kid-blue/50"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleGlobalSearch()}
+                    />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                    {searchTerm && (
+                        <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300">
+                            <X size={20} />
+                        </button>
+                    )}
+                  </div>
+
+                  {searchTerm && filteredItems.length === 0 && !isAiLoading && (
+                    <div className="bg-white p-6 rounded-2xl shadow-sm text-center">
+                      <p className="mb-4 text-gray-500">书里没找到这个词哦。</p>
+                      <Button color="bg-kid-pink" onClick={handleGlobalSearch} className="w-full">
+                         <Sparkles size={18} /> 问问魔法老师
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Items Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {paginatedItems.map(item => (
+                      <Card 
+                        key={item.id} 
+                        item={item} 
+                        onAskAI={handleAskAI}
+                        onToggleRead={handleToggleRead}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
             </>
           )}
 
@@ -731,7 +856,7 @@ export default function App() {
         </div>
 
         {/* Pagination Footer */}
-        {totalPages > 1 && selectedUnit && (
+        {totalPages > 1 && (selectedUnit || currentView === AppView.ENGLISH || (currentView === AppView.HANZI && !items.some(i => i.grade))) && (
             <div className="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-md border-t border-gray-100 p-4 z-40 flex items-center justify-between safe-area-bottom shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
                 <Button 
                     color="bg-kid-blue" 
